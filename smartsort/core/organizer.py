@@ -46,6 +46,8 @@ def plan_organization(root: Path, config: AppConfig, options: ScanOptions = Scan
     mode = OperationType(mode)
     if duplicate_action not in {"keep", "skip", "quarantine"}:
         raise ValueError("duplicate_action must be keep, skip, or quarantine")
+    if duplicate_action == "quarantine" and mode != OperationType.MOVE:
+        raise ValueError("Quarantine requires move mode; use the dedicated duplicate quarantine workflow.")
     targets = (*options.destination_dirs, *destination_dirs(root, config), resolve_destination(root, config.duplicates_folder))
     options = replace(options, destination_dirs=tuple(dict.fromkeys(targets)))
     scanned = scan(root, options)

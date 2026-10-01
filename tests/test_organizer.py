@@ -226,6 +226,16 @@ def test_duplicate_skip_is_previewed_and_not_changed(setup):
     assert (root / "b.txt").read_text() == "same"
 
 
+def test_quarantine_cannot_silently_copy_instead_of_moving(setup):
+    root, config, history = setup
+    for name in ("a.txt", "b.txt"):
+        (root / name).write_text("same")
+    with pytest.raises(ValueError, match="requires move mode"):
+        plan_organization(root, config, mode=OperationType.COPY, duplicate_action="quarantine")
+    assert sorted(p.name for p in root.iterdir()) == ["a.txt", "b.txt"]
+    assert not history.path.exists()
+
+
 def test_forged_plan_cannot_escape_root_or_target_metadata(setup):
     root, config, history = setup
     (root / "a.txt").write_text("safe")
