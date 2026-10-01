@@ -146,6 +146,75 @@ def test_duplicate_keeper_is_chosen_before_only_paths(setup):
     assert history.undo_session(result.session_id).counts()["undone"] == 2
 
 
+def test_stale_quarantine_selection_does_not_fall_back_to_ordinary_sorting(setup):
+    root, config, history = setup
+    for name in ("a.txt", "b.txt", "c.txt"):
+        (root / name).write_text("same")
+    # The user selected extras from an earlier report, then edited one extra.
+    selected = (root / "b.txt", root / "c.txt")
+    (root / "b.txt").write_text("now unique")
+    plan = plan_organization(root, config, duplicate_action="quarantine", only_paths=selected)
+    assert [item.source.name for item in plan.items] == ["c.txt"]
+    assert all(item.category == "Duplicates" for item in plan.items)
+    assert any("b.txt" in warning and "fresh duplicate scan" in warning for warning in plan.errors)
+    batch = execute_plan(plan, history)
+    assert batch.counts()["succeeded"] == 1
+    assert (root / "b.txt").read_text() == "now unique"
+    assert not (root / "Documents" / "b.txt").exists()
+
+
+@pytest.mark.parametrize("stale_kind", ["unique", "missing", "now_keeper"])
+def test_no_verified_quarantine_extras_produces_warning_and_no_actions(setup, stale_kind):
+    root, config, history = setup
+    (root / "a.txt").write_text("same")
+    (root / "b.txt").write_text("same")
+    if stale_kind == "unique":
+        (root / "b.txt").write_text("different")
+    elif stale_kind == "missing":
+        (root / "b.txt").unlink()
+    else:
+        # A former extra becomes the sole remaining keeper after its peer changed.
+        (root / "a.txt").write_text("different")
+    plan = plan_organization(root, config, duplicate_action="quarantine", only_paths=(root / "b.txt",))
+    assert not plan.items
+    assert any("fresh duplicate scan" in warning for warning in plan.errors)
+    result = execute_plan(plan, history)
+    assert result.session_id is None and result.errors
+    assert not history.path.exists()
+    assert not (root / ".smartsort.lock").exists()
+    assert not (root / "Documents").exists()
+    assert not (root / "Duplicates").exists()
+
+
+def test_quarantine_preview_binds_content_even_if_size_and_mtime_are_restored(setup):
+    import os
+    root, config, history = setup
+    for name in ("a.txt", "b.txt"):
+        (root / name).write_text("aaaa")
+    source = root / "b.txt"
+    metadata = source.stat()
+    plan = plan_organization(root, config, duplicate_action="quarantine", only_paths=(source,))
+    assert len(plan.items[0].identity.sha256) == 64
+    source.write_text("bbbb")
+    os.utime(source, ns=(metadata.st_atime_ns, metadata.st_mtime_ns))
+    assert source.stat().st_size == metadata.st_size
+    assert source.stat().st_mtime_ns == metadata.st_mtime_ns
+    result = execute_plan(plan, history)
+    assert result.results[0].status == Status.NEEDS_REPLAN
+    assert source.read_text() == "bbbb"
+    assert not plan.items[0].destination.exists()
+
+
+def test_duplicate_hashes_are_bound_to_keeper_and_extra_previews(setup):
+    root, config, history = setup
+    for name in ("a.txt", "b.txt"):
+        (root / name).write_text("same")
+    plan = plan_organization(root, config, duplicate_action="quarantine")
+    assert len(plan.items) == 2
+    assert all(len(item.identity.sha256) == 64 for item in plan.items)
+    assert plan.items[0].identity.sha256 == plan.items[1].identity.sha256
+
+
 def test_duplicate_skip_is_previewed_and_not_changed(setup):
     root, config, history = setup
     (root / "a.txt").write_text("same")

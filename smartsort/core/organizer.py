@@ -51,6 +51,7 @@ def plan_organization(root: Path, config: AppConfig, options: ScanOptions = Scan
     scanned = scan(root, options)
     errors = list(scanned.errors)
     duplicate_members: set[Path] = set()
+    duplicate_hashes: dict[Path, str] = {}
     # Identify the keeper using the full eligible scan before selecting requested paths.
     if duplicate_action != "keep":
         report = find_duplicates(scanned.files)
@@ -58,9 +59,14 @@ def plan_organization(root: Path, config: AppConfig, options: ScanOptions = Scan
         for group in report.groups:
             ordered = sorted(group.files, key=lambda p: (str(p.relative_to(root)).casefold(), str(p.relative_to(root))))
             duplicate_members.update(ordered[1:])
+            duplicate_hashes.update((path, group.sha256) for path in ordered)
     selected = None
     if only_paths is not None:
         selected = {fs.validate_path(root, Path(p)) for p in only_paths}
+        if duplicate_action == "quarantine":
+            for path in sorted(selected - duplicate_members, key=lambda p: (str(p).casefold(), str(p))):
+                errors.append(f"{path.name}: no longer a verified duplicate extra; skipped. Run a fresh duplicate scan before quarantining.")
+            selected.intersection_update(duplicate_members)
     reserved: set[str] = set()
     items: list[PlannedOperation] = []
     files = sorted(scanned.files, key=lambda f: (str(f.path.relative_to(root)).casefold(), str(f.path.relative_to(root))))
@@ -82,7 +88,8 @@ def plan_organization(root: Path, config: AppConfig, options: ScanOptions = Scan
             fs.validate_path(root, destination)
             if conflict != "duplicate_skip":
                 destination, conflict = _reserve(destination, reserved)
-            items.append(PlannedOperation(file.path, destination, mode, reason, file.identity, conflict, category))
+            identity = replace(file.identity, sha256=duplicate_hashes.get(file.path, file.identity.sha256))
+            items.append(PlannedOperation(file.path, destination, mode, reason, identity, conflict, category))
         except (OSError, ValueError) as exc:
             errors.append(f"{file.path.name}: {exc}")
     return OperationPlan(root, tuple(items), tuple(errors))
