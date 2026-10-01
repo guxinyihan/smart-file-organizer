@@ -1,6 +1,6 @@
 # SmartSort final implementation report
 
-Completed local implementation and validation on **2026-10-02**. GitHub publication is blocked by unavailable authenticated creation/push access. SmartRecall, CampusCompass, TeamFlow, StudentFinance, and UniPilot were not implemented or modified in this stage.
+Completed implementation, local validation, and public GitHub publication on **2026-10-02**. The published repository is [guxinyihan/smart-file-organizer](https://github.com/guxinyihan/smart-file-organizer). SmartRecall, CampusCompass, TeamFlow, StudentFinance, and UniPilot were not implemented or modified in this stage.
 
 ## 1. Upstream repository and audited commit
 
@@ -75,11 +75,24 @@ Statistics count actual successful journal activity by files, bytes, type, categ
 
 Actual latest command: `.venv\Scripts\python.exe -m pytest -q`.
 
-**195 passed, 6 skipped in 20.32 seconds**, on Windows/Python 3.14.7. All six skips concern unavailable file-symlink creation privileges. Windows junction and hard-link checks passed. The suite includes 18 original characterization tests and 28 real Tk GUI tests.
+**195 passed, 6 skipped in 20.44 seconds**, on Windows/Python 3.14.7, after the final visible-view GUI test correction. All six skips concern unavailable file-symlink creation privileges. Windows junction and hard-link checks passed. The suite includes 18 original characterization tests and 28 real Tk GUI tests; the focused desktop run passed all 28 in 9.48 seconds.
 
 Coverage includes import safety for every module, extension/custom/priority rules, invalid config and path escapes, traversal/hidden/filter behavior, batch collisions and pure preview, unknown/missing/changed sources, partial and permission failures, simulated cross-filesystem fallback, persistent sessions, journal write failure ordering, occupied/changed/replaced undo, optimized differently named duplicates, stale selections, aliased logs/rotation, watch stabilization, CLI workflows, UI-thread access, approval, cancellation, large-table responsiveness, and monitor startup/Close races.
 
-CLI help and the four-rule example passed; GUI startup smoke exited 0 without creating its supplied state folder. No lint/type checker or artificial coverage requirement was introduced. [The hosted matrix](.github/workflows/tests.yml) is configured for Windows/macOS/Linux and Python 3.11/3.14, but hosted jobs have not been run here.
+CLI help and the four-rule example passed; GUI startup smoke exited 0 without creating its supplied state folder. No lint/type checker or artificial coverage requirement was introduced.
+
+[The hosted matrix](.github/workflows/tests.yml) completed successfully in [run 36907043412](https://github.com/guxinyihan/smart-file-organizer/actions/runs/36907043412), at source/test revision `4a141676d9b145705267d0ca2c536cc5b5c28936`. Every job also passed dependency installation, CLI help, and packaged-rule validation. Actual test logs reported:
+
+| Hosted target | Python | Passed | Skipped | Test duration |
+| --- | --- | ---: | ---: | ---: |
+| Windows | 3.11 | 201 | 0 | 25.91 s |
+| Windows | 3.14 | 201 | 0 | 27.80 s |
+| macOS | 3.11 | 197 | 4 | 9.15 s |
+| macOS | 3.14 | 197 | 4 | 13.19 s |
+| Linux | 3.11 | 170 | 31 | 4.70 s |
+| Linux | 3.14 | 170 | 31 | 5.19 s |
+
+The four non-Windows skips are Windows-specific junction/reparse tests. Linux additionally skipped 27 desktop cases because the runners had no display. Windows and macOS exercised all 28 desktop tests. Earlier macOS 3.11 runs were stopped after a native Tk `update()` stall in the history test; diagnostics located the call, and the test was corrected to display and select the History/Settings views as a user does, retaining all assertions. CI now has a ten-minute job limit and detailed test/timeout output.
 
 ## 13. Manual disposable-folder and clean-install tests
 
@@ -100,7 +113,7 @@ Tested wheel SHA-256: `ef06b70f74555045ba97739394299d5ad2820d03127a697506340188b
 
 ## 14. Known limitations
 
-Only Windows/Python 3.14.7 was locally executed; other declared targets await hosted testing. Creation time is platform-dependent. Copy/fallback transfers preserve bytes but do not promise timestamps, ACLs, extended attributes, or all metadata. Ordinary previews use metadata identity, so not every metadata-preserving content change is detected before execution. External OS races remain possible. Recovery is conservative read-only inspection. The stability interval cannot prove a producer has closed a paused file. Watch rescans pending collections and can be improved for very large trees. Historical statistics are cumulative, not current disk inventory. Upstream undo records are not migrated.
+Local execution used Windows/Python 3.14.7; hosted validation covered the six combinations above. Linux desktop execution was skipped without a display. Native Tk behavior remains a platform dependency; the mapped-view test correction does not establish immunity to every older Tk event-loop issue. Creation time is platform-dependent. Copy/fallback transfers preserve bytes but do not promise timestamps, ACLs, extended attributes, or all metadata. Ordinary previews use metadata identity, so not every metadata-preserving content change is detected before execution. External OS races remain possible. Recovery is conservative read-only inspection. The stability interval cannot prove a producer has closed a paused file. Watch rescans pending collections and can be improved for very large trees. Historical statistics are cumulative, not current disk inventory. Upstream undo records are not migrated.
 
 ## 15. Dependencies
 
@@ -108,7 +121,7 @@ Core runtime: Python standard library, including `sqlite3`; desktop: Tkinter/ttk
 
 ## 16. Supported Python version
 
-Declared **Python 3.11 or newer**, including standard `StrEnum`; locally verified 3.14.7. This raises the original source's Python 3.8 syntax minimum explicitly rather than claiming continued 3.8 compatibility.
+Declared **Python 3.11 or newer**, including standard `StrEnum`; locally verified 3.14.7 and verified in hosted jobs for 3.11/3.14. This raises the original source's Python 3.8 syntax minimum explicitly rather than claiming continued 3.8 compatibility.
 
 ## 17. Exact CLI run commands
 
@@ -145,6 +158,9 @@ Choose a disposable folder, Preview, review destinations, then approve. [README 
 Completed milestones were verified and committed incrementally; they were not reconstructed as one end-of-project commit:
 
 ```text
+4a14167 test: exercise history and logs through visible desktop views
+0924530 ci: bound hosted tests and expose stalled test diagnostics
+a39bf4b docs: record final validation and publication authentication blocker
 6976a1e docs: document verified workflows architecture and actual desktop views
 dfebdde fix: require moves for explicit duplicate quarantine
 cbb09a6 test: verify package import purity and configure platform checks
@@ -163,10 +179,14 @@ e31f0c3 refactor: separate validated rules and safe directory scanning
 5daff64 new features
 ```
 
-Before publication checks, `git status --short` was empty, `git diff --check` passed, and no tracked runtime database/log/env artifacts were found. Token-pattern scans of current source and full patch history were clean; personal-path/TODO/FIXME review was clean. Upstream license diff was empty and ancestry verified. No unrelated project's files were changed. This report and final validation evidence are committed in a following documentation commit.
+Before publication, `git status --short` was empty, `git diff --check` passed, and no tracked runtime database/log/env artifacts were found. Token-pattern scans of current source and full patch history were clean; personal-path/TODO/FIXME review was clean. Upstream license diff was empty and ancestry verified. No unrelated project's files were changed. The first published revision was `a39bf4b6913f14f7a60806d9bfb346858720c302`; publication evidence is recorded in the subsequent documentation commit.
 
 ## 20. GitHub publication outcome
 
-**Not published.** `gh auth status` returned exit 1: the active `guxinyihan` token is invalid. A noninteractive existing Git HTTPS credential-helper probe found no usable publication credential. The connected GitHub integration freshly verified account `guxinyihan`, but its available capabilities do not include repository creation or Git push. No token was exposed, no new repository was created, no origin was fabricated, and no push was attempted against upstream or an existing personal repository.
+**Published successfully:** [https://github.com/guxinyihan/smart-file-organizer](https://github.com/guxinyihan/smart-file-organizer). The requested name was available, so the fallback was unnecessary. A new public personal repository was created after the user's authorization, with the requested description and seven topics: `python`, `file-organizer`, `automation`, `filesystem`, `desktop-app`, `tkinter`, and `productivity`.
 
-The local repository is ready for authenticated publication as `smart-file-organizer` (or the requested available fallback after checking existence). There is no published SmartSort repository URL to report. Existing remote remains `upstream` only; authentication must be restored through a supported publication method before creating the public personal repository and adding `origin`.
+The full `main` history was pushed and GitHub's commit API confirmed the first published revision exactly matched local HEAD, `a39bf4b6913f14f7a60806d9bfb346858720c302`. `origin` is `https://github.com/guxinyihan/smart-file-organizer.git`; `upstream` remains `https://github.com/Shunlauk/file-organizer-python.git`. No existing repository or upstream branch was overwritten. GitHub metadata confirmed public visibility, the requested description/topics, and `main` as the default branch.
+
+Earlier sandbox checks reported unavailable authentication. After the user renewed authorization, the system's Windows Credential Manager provided working GitHub CLI authentication for `guxinyihan`. Publication used that supported credential flow without exposing tokens. The first push triggered hosted validation; two early runs were stopped to diagnose the macOS 3.11 test-harness stall. [The corrected six-job run](https://github.com/guxinyihan/smart-file-organizer/actions/runs/36907043412) passed, with its actual outcomes documented above.
+
+Intermittent direct Git HTTPS connection failures affected later uploads. GitHub's official Git Database API published the subsequent commit objects using their committed bytes, original parents, author/committer dates, and messages. Returned blob, tree, and commit IDs were checked against local Git IDs before a non-forced, fast-forward update of `main`. The published source/test revision exactly matched `4a141676d9b145705267d0ca2c536cc5b5c28936`; this report and publication documentation follow in a separate documentation commit.

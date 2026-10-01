@@ -69,9 +69,11 @@ See [the architecture document](docs/ARCHITECTURE.md) for the journal ordering, 
 
 Requires **Python 3.11 or newer**. The organizer core uses the Python standard library. The GUI requires Tkinter; some operating-system Python packages install Tk support separately.
 
-Create an isolated environment in the cloned repository:
+Clone the public repository, then create an isolated environment:
 
 ```text
+git clone https://github.com/guxinyihan/smart-file-organizer.git
+cd smart-file-organizer
 python -m venv .venv
 ```
 
@@ -304,7 +306,7 @@ Tests use disposable directories and cover import safety, upstream characterizat
 
 The upstream snapshot tests deliberately reproduce original defects. SmartSort's other tests assert the corrected safety behavior; a passing characterization test alone is not proof that the new application is safe. See [baseline evidence](docs/BASELINE_REPORT.md) and [the development log](docs/DEVELOPMENT_LOG.md).
 
-Display-dependent tests explicitly skip when Tk cannot open a display; privileged filesystem tests can skip when the operating system does not permit creating the required links. Such skips are reported and do not count as successful execution of those scenarios. [The configured GitHub Actions matrix](.github/workflows/tests.yml) targets Windows, macOS, and Linux with Python 3.11 and 3.14; it has not been verified by an executed hosted run.
+Display-dependent tests explicitly skip when Tk cannot open a display; privileged filesystem tests can skip when the operating system does not permit creating the required links. Such skips are reported and do not count as successful execution of those scenarios. [The GitHub Actions matrix](.github/workflows/tests.yml) passed all six Windows, macOS, and Linux jobs for Python 3.11 and 3.14 in [the verified hosted run](https://github.com/guxinyihan/smart-file-organizer/actions/runs/36907043412). Windows passed all 201 tests per job; macOS passed 197 with four Windows-specific skips; Linux passed 170 with 27 display-dependent and four Windows-specific skips. [The final report](FINAL_REPORT.md#12-automated-tests) records the individual results.
 
 ## Project Structure
 
@@ -336,7 +338,7 @@ Runtime databases, logs, virtual environments, caches, and local runtime state b
 
 ## Roadmap
 
-- Run and review the hosted operating-system/Python validation matrix after publication.
+- Add Linux desktop validation with a virtual display and broaden filesystem metadata checks.
 - Improve metadata preservation for exclusive byte-copy transfers.
 - Add explicit, reviewed reconciliation actions for interrupted sessions while preserving the current conservative inspection behavior.
 - Improve large-directory watch indexing and desktop accessibility checks.
