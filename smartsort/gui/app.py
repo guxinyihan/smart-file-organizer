@@ -56,6 +56,8 @@ class SmartSortApp:
         self.events: queue.Queue = queue.Queue()
         self.worker: threading.Thread | None = None
         self.watch = None
+        self._starting_watch = None
+        self._watch_lifecycle_lock = threading.Lock()
         self.cancel_event = threading.Event()
         self.cancellable = False
         self.current_plan = None
@@ -98,6 +100,9 @@ class SmartSortApp:
         header.pack(fill="x", pady=(0, 18))
         ttk.Label(header, text="SmartSort", style="Title.TLabel").pack(anchor="w")
         ttk.Label(header, text="A clear plan. A safer place for every file.", style="Subtitle.TLabel").pack(anchor="w", pady=(4, 0))
+        self.status = tk.StringVar(value="Choose a folder, then preview your plan. No folders are monitored at startup.")
+        self.status_label = ttk.Label(outer, textvariable=self.status, wraplength=980, style="Subtitle.TLabel")
+        self.status_label.pack(side="bottom", fill="x", pady=(12, 0))
         self.notebook = ttk.Notebook(outer)
         self.notebook.pack(fill="both", expand=True)
         self.organize_tab = ttk.Frame(self.notebook, padding=16)
@@ -109,8 +114,6 @@ class SmartSortApp:
                             (self.rules_tab, "Rules"), (self.history_tab, "History"),
                             (self.settings_tab, "Settings & logs")):
             self.notebook.add(frame, text=name)
-        self.status = tk.StringVar(value="Choose a folder, then preview your plan. No folders are monitored at startup.")
-        ttk.Label(outer, textvariable=self.status, wraplength=980, style="Subtitle.TLabel").pack(fill="x", pady=(12, 0))
         self._actions = []
         self._inputs = []
         self._build_organize()
@@ -197,8 +200,9 @@ class SmartSortApp:
         self.cancel_button.pack(side="left")
         self.progress = ttk.Progressbar(actions, maximum=100, mode="determinate")
         self.progress.pack(side="right", fill="x", expand=True, padx=(20, 0))
+        self.summary_label = ttk.Label(frame, textvariable=self.summary_var, wraplength=940)
+        self.summary_label.pack(side="bottom", fill="x", pady=(10, 0))
         self.plan_tree = self._tree(frame, ("Source", "Destination", "Reason", "Conflict / result"), (250, 250, 185, 160))
-        ttk.Label(frame, textvariable=self.summary_var, wraplength=940).pack(anchor="w", pady=(10, 0))
         for variable in (self.folder_var, self.mode_var, self.recursive_var, self.hidden_var,
                          self.include_var, self.exclude_var, self.excluded_dirs_var, self.duplicate_action_var):
             variable.trace_add("write", self._invalidate)
@@ -213,9 +217,10 @@ class SmartSortApp:
         self.quarantine_button.pack(side="left", padx=10)
         self._button(actions, "Keep all when organizing", lambda: self.set_duplicate_action("keep")).pack(side="left")
         self._button(actions, "Skip extras when organizing", lambda: self.set_duplicate_action("skip")).pack(side="left", padx=(10, 0))
-        self.duplicate_tree = self._tree(self.duplicates_tab, ("Group", "File", "Size", "Role"), (70, 550, 120, 120))
         self.duplicate_summary = tk.StringVar(value="No duplicate scan yet. Duplicate files are never automatically deleted.")
-        ttk.Label(self.duplicates_tab, textvariable=self.duplicate_summary, wraplength=930).pack(anchor="w", pady=(10, 0))
+        self.duplicate_summary_label = ttk.Label(self.duplicates_tab, textvariable=self.duplicate_summary, wraplength=930)
+        self.duplicate_summary_label.pack(side="bottom", fill="x", pady=(10, 0))
+        self.duplicate_tree = self._tree(self.duplicates_tab, ("Group", "File", "Size", "Role"), (70, 550, 120, 120))
 
     def _build_rules(self):
         ttk.Label(self.rules_tab, text="Ordered rules · first match wins", font=("Segoe UI", 13, "bold")).pack(anchor="w")
@@ -249,9 +254,9 @@ class SmartSortApp:
         for label, command in (("Refresh history", self.refresh_history), ("View selected session", self.view_session),
                                ("Undo selected session", self.undo_session), ("Inspect recovery", self.recover_session)):
             self._button(actions, label, command).pack(side="left", padx=(0, 8))
-        self.history_tree = self._tree(self.history_tab, ("Session", "Created", "Mode", "Status", "Folder"), (230, 170, 70, 130, 300))
         self.history_details = tk.Text(self.history_tab, height=7, wrap="word", font=("Consolas", 9), state="disabled", padx=10, pady=8)
-        self.history_details.pack(fill="x", pady=(10, 0))
+        self.history_details.pack(side="bottom", fill="x", pady=(10, 0))
+        self.history_tree = self._tree(self.history_tab, ("Session", "Created", "Mode", "Status", "Folder"), (230, 170, 70, 130, 300))
 
     def _build_settings(self):
         frame = self.settings_tab
@@ -792,16 +797,31 @@ class SmartSortApp:
                                        stable_seconds=stable, poll_seconds=poll,
                                        on_result=lambda result: events.put(("watch_result", result)),
                                        on_error=lambda error: (logger.error("Desktop monitoring: %s", error), events.put(("watch_error", error))))
-                if not cancel.is_set():
-                    service.start()
-                if cancel.is_set():
+                # Own the service before it starts: Close may run before the UI
+                # receives the queued completion event and adopts self.watch.
+                with self._watch_lifecycle_lock:
+                    self._starting_watch = service
+                try:
+                    if not cancel.is_set():
+                        service.start()
+                    if cancel.is_set():
+                        service.stop()
+                        service.join()
+                    else:
+                        logger.info("Desktop monitoring enabled")
+                    return service
+                except Exception:
                     service.stop()
                     service.join()
-                else:
-                    logger.info("Desktop monitoring enabled")
-                return service
+                    with self._watch_lifecycle_lock:
+                        if self._starting_watch is service:
+                            self._starting_watch = None
+                    raise
             def done(service):
-                self.watch = service
+                with self._watch_lifecycle_lock:
+                    self.watch = service
+                    if self._starting_watch is service:
+                        self._starting_watch = None
                 self.watch_status.set(f"Monitoring {selected} · {mode.value} · stable for {stable:g}s")
                 self.status.set("Monitoring is explicitly enabled. Use Stop monitoring to end it.")
                 def wait_for_stop():
@@ -824,8 +844,10 @@ class SmartSortApp:
         self.closing = True
         self._cancel_render()
         self.cancel_event.set()
-        if self.watch is not None:
-            self.watch.stop()
+        with self._watch_lifecycle_lock:
+            services = tuple(service for service in (self.watch, self._starting_watch) if service is not None)
+        for service in services:
+            service.stop()
         if self.after_id is not None:
             self.root.after_cancel(self.after_id)
             self.after_id = None
@@ -837,12 +859,15 @@ class SmartSortApp:
         if self.worker is not None and self.worker.is_alive():
             self.root.after(60, self._finish_close)
             return
-        if self.watch is not None:
+        with self._watch_lifecycle_lock:
+            services = tuple(service for service in (self.watch, self._starting_watch) if service is not None)
+        for service in services:
+            service.stop()
             try:
-                self.watch.join(timeout=0)
+                service.join(timeout=0)
             except TypeError:
-                self.watch.join(0)
-            if hasattr(self.watch, "is_alive") and self.watch.is_alive():
+                service.join(0)
+            if hasattr(service, "is_alive") and service.is_alive():
                 self.root.after(60, self._finish_close)
                 return
         self.root.destroy()

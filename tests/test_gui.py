@@ -90,6 +90,33 @@ def test_gui_startup_has_five_functional_views_and_creates_no_runtime_state(gui)
     assert str(application.organize_button["state"]) == "disabled"
 
 
+def test_gui_default_size_keeps_status_summary_and_history_details_visible(gui):
+    application, window, _ = gui
+    window.geometry("1080x760")
+    window.deiconify()
+    window.update()
+
+    def visible_inside(widget, container):
+        assert widget.winfo_ismapped()
+        assert widget.winfo_height() > 1
+        assert widget.winfo_rooty() >= container.winfo_rooty()
+        assert widget.winfo_rooty() + widget.winfo_height() <= container.winfo_rooty() + container.winfo_height()
+        assert widget.winfo_rootx() >= container.winfo_rootx()
+        assert widget.winfo_rootx() + widget.winfo_width() <= container.winfo_rootx() + container.winfo_width()
+
+    visible_inside(application.status_label, window)
+    for tab, footer in (
+        (application.organize_tab, application.summary_label),
+        (application.duplicates_tab, application.duplicate_summary_label),
+        (application.history_tab, application.history_details),
+    ):
+        application.notebook.select(tab)
+        window.update()
+        visible_inside(footer, tab)
+        visible_inside(application.status_label, window)
+    window.withdraw()
+
+
 def test_gui_rejects_storage_equal_to_selected_root(gui):
     application, window, selected = gui
     application.state_dir = selected
@@ -348,6 +375,116 @@ def test_gui_monitoring_requires_explicit_approval(gui, monkeypatch):
     assert application.worker is None
     assert application.watch is None
     assert not application.state_dir.exists()
+
+
+@pytest.mark.parametrize("early_error", [False, True])
+def test_gui_close_stops_monitor_started_before_ui_adoption(tmp_path, monkeypatch, early_error):
+    from smartsort.services import watcher
+    try:
+        window = tk.Tk()
+    except tk.TclError as error:
+        pytest.skip(f"Tk display unavailable: {error}")
+    window.withdraw()
+    main_thread = threading.get_ident()
+    reached_final_check = threading.Event()
+    release_worker = threading.Event()
+    destroyed = threading.Event()
+    monitors = []
+
+    class Monitor:
+        def __init__(self, *args, **kwargs):
+            self.alive = False
+            self.stopped = False
+            self.on_error = kwargs["on_error"]
+            monitors.append(self)
+        def start(self):
+            self.alive = True
+            if early_error:
+                self.on_error("Startup monitor error")
+        def stop(self):
+            self.stopped = True
+            self.alive = False
+        def join(self, timeout=None):
+            pass
+        def is_alive(self):
+            return self.alive
+
+    class Logger:
+        def info(self, message):
+            assert message == "Desktop monitoring enabled"
+            reached_final_check.set()
+            assert release_worker.wait(5)
+        def error(self, *args):
+            pass
+
+    original_destroy = window.destroy
+    def record_destroy():
+        assert threading.get_ident() == main_thread
+        destroyed.set()
+        original_destroy()
+    monkeypatch.setattr(window, "destroy", record_destroy)
+    monkeypatch.setattr(watcher, "WatchService", Monitor)
+    monkeypatch.setattr(desktop, "configure_logging", lambda *args: Logger())
+    monkeypatch.setattr(desktop.messagebox, "askyesno", lambda *args, **kwargs: True)
+    selected = tmp_path / "selected"
+    selected.mkdir()
+    application = desktop.SmartSortApp(window, state_dir=tmp_path / "state")
+    application.folder_var.set(str(selected))
+    try:
+        application.start_watch()
+        wait_for(window, reached_final_check.is_set)
+        if early_error:
+            wait_for(window, lambda: "Startup monitor error" in application.watch_status.get())
+        assert application.watch is None  # The queued startup result is not adopted yet.
+        assert monitors[0].is_alive()
+        application.close()
+        assert monitors[0].stopped
+        release_worker.set()
+        deadline = time.monotonic() + 5
+        while not destroyed.is_set() and time.monotonic() < deadline:
+            window.update()
+            time.sleep(0.01)
+        assert destroyed.is_set()
+        assert not monitors[0].is_alive()
+        assert not application.worker.is_alive()
+    finally:
+        release_worker.set()
+        for service in monitors:
+            service.stop()
+        if application.worker is not None:
+            application.worker.join(timeout=5)
+        if not destroyed.is_set():
+            original_destroy()
+
+
+def test_gui_startup_failure_stops_monitor_and_releases_lifecycle_ownership(gui, monkeypatch):
+    from smartsort.services import watcher
+    application, window, _ = gui
+    monitors = []
+
+    class Monitor:
+        def __init__(self, *args, **kwargs):
+            self.alive = False
+            self.joined = False
+            monitors.append(self)
+        def start(self):
+            self.alive = True
+            raise RuntimeError("Monitor startup failed after activation")
+        def stop(self):
+            self.alive = False
+        def join(self, timeout=None):
+            self.joined = True
+        def is_alive(self):
+            return self.alive
+
+    monkeypatch.setattr(watcher, "WatchService", Monitor)
+    application.start_watch()
+    wait_for(window, lambda: application.worker is None)
+    assert application.test_errors == ["Monitor startup failed after activation"]
+    assert monitors[0].joined and not monitors[0].is_alive()
+    assert application.watch is None
+    assert application._starting_watch is None
+    assert str(application.watch_start_button["state"]) == "normal"
 
 
 def test_gui_real_monitoring_starts_processes_new_stable_file_and_stops(gui):
