@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "smartsort-organizer"
+version = "1.0.0"
+description = "Safe rule-based file organization with persistent undo, CLI and desktop GUI"
+readme = "Readme.md"
+requires-python = ">=3.11"
+license = {file = "LICENSE"}
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+watch = ["watchdog>=4"]
+
+[project.scripts]
+smartsort = "smartsort.cli.main:main"
+smartsort-gui = "smartsort.gui.app:main"
+
+[tool.setuptools.packages.find]
+include = ["smartsort*"]
+
+[tool.setuptools.package-data]
+smartsort = ["data/*.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"

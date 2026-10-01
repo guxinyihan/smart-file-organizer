@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "fallback": "Others",
+  "duplicates_folder": "Duplicates",
+  "rules": [
+    {
+      "name": "Large research PDFs",
+      "destination": "Documents/Research",
+      "extensions": [".pdf"],
+      "pattern": "research-*",
+      "min_size": 1048576
+    },
+    {
+      "name": "Older documents",
+      "destination": "Documents/Archive",
+      "extensions": [".pdf", ".docx", ".txt"],
+      "modified_older_than_days": 365
+    },
+    {
+      "name": "Documents",
+      "destination": "Documents/Current",
+      "extensions": [".pdf", ".docx", ".txt", ".md"]
+    },
+    {
+      "name": "Images",
+      "destination": "Images",
+      "extensions": [".jpg", ".jpeg", ".png", ".webp"]
+    }
+  ]
+}
