@@ -296,10 +296,12 @@ def test_gui_duplicate_scan_and_selected_extra_quarantine_preserve_keeper(gui):
 
 def test_gui_history_detail_undo_statistics_and_logs_use_recorded_results(gui):
     application, window, selected = gui
+    window.deiconify()
     source = selected / "notes.txt"
     source.write_text("history", encoding="utf-8")
     preview(gui)
     result = organize(gui)
+    application.notebook.select(application.history_tab)
     application.refresh_history()
     wait_for(window, lambda: application.worker is None)
     application.history_tree.selection_set(result.session_id)
@@ -315,6 +317,7 @@ def test_gui_history_detail_undo_statistics_and_logs_use_recorded_results(gui):
     wait_for(window, lambda: application.worker is None)
     assert "Recovery inspected" in application.status.get()
     assert '"read_only": true' in application.history_details.get("1.0", "end")
+    application.notebook.select(application.settings_tab)
     application.refresh_statistics()
     wait_for(window, lambda: application.worker is None)
     assert "Successful files: 1" in application.statistics_var.get()
