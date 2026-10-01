@@ -233,6 +233,8 @@ second/report.pdf → Documents/report (1).pdf
 
 Execution consumes that plan and checks source identity and destination conditions again. If another program changes a file's recorded metadata or creates a destination after preview, the affected item needs a new plan. Execution does not silently invent a different destination.
 
+Ordinary preview records metadata identity rather than hashing every file. It cannot detect every content alteration that preserves that identity and metadata. Execution records content fingerprints before transfer; duplicate-aware plans also retain the hashes already calculated during duplicate comparison.
+
 The desktop retains exactly the previewed plan until approval. The CLI `organize` command builds and displays its own plan immediately before approval; a separate earlier `preview` invocation is informational rather than a saved executable plan.
 
 Recursive scans prune configured destinations, SmartSort state, internal directories such as `.git` and `.venv`, and user exclusions. Symlinks, Windows junctions/reparse points, and non-regular files are skipped. Hidden detection covers leading-dot names and Windows hidden/system attributes where exposed by Python. Active configuration and journal files are excluded by the application workflows.
