@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "smartsort-organizer"
 version = "1.0.0"
 description = "Safe rule-based file organization with persistent undo, CLI and desktop GUI"
-readme = "Readme.md"
+readme = "README.md"
 requires-python = ">=3.11"
 license = {file = "LICENSE"}
 dependencies = []

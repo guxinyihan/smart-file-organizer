@@ -10,6 +10,7 @@ dist/
 .vscode/
 .env
 *.log
+*.log.[12]
 *.sqlite*
 *.db
 undo.json
