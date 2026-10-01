@@ -1,3 +1,19 @@
-organizer.log
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+build/
+dist/
+*.egg-info/
+.idea/
+.vscode/
+.env
+*.log
+*.sqlite*
+*.db
 undo.json
+.smartsort.lock
+.smartsort/
+local-config.json
 
